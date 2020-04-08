@@ -535,6 +535,13 @@ sub inspect : Private {
 
         $c->cobrand->call_hook(report_inspect_update_extra => $problem);
 
+        $c->forward('/photo/process_photo');
+        if ( my $photo_error  = delete $c->stash->{photo_error} ) {
+            $valid = 0;
+            $c->stash->{errors} ||= [];
+            push @{ $c->stash->{errors} }, $photo_error;
+        }
+
         if ($valid) {
             $problem->lastupdate( \'current_timestamp' );
             $problem->update;
@@ -551,7 +558,7 @@ sub inspect : Private {
                     );
                 }
                 my $name = $c->user->from_body ? $c->user->from_body->name : $c->user->name;
-                $problem->add_to_comments( {
+                my $update = $problem->add_to_comments( {
                     text => $update_text,
                     created => $timestamp,
                     confirmed => $timestamp,
@@ -562,6 +569,10 @@ sub inspect : Private {
                     anonymous => 0,
                     %update_params,
                 } );
+                if ( my $fileid = $c->stash->{upload_fileid} ) {
+                    $update->photo($fileid);
+                    $update->update;
+                }
             }
 
             my $redirect_uri;
