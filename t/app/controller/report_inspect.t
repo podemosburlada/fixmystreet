@@ -609,7 +609,7 @@ FixMyStreet::override_config {
         } });
         $report->discard_changes;
         my $comment = $report->comments(undef, { rows => 1, order_by => { -desc => "id" }})->first;
-        isnt $comment->photo, '', 'photo added to comment';
+        is $comment->photo, '74e3362283b6ef0c48686fb0e161da4043bbcc97.jpeg', 'photo added to comment';
         $mech->get_ok("/report/$report_id");
         $mech->content_contains("/photo/c/" . $comment->id . ".0.jpeg");
     };

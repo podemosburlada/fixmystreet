@@ -538,7 +538,6 @@ sub inspect : Private {
         $c->forward('/photo/process_photo');
         if ( my $photo_error  = delete $c->stash->{photo_error} ) {
             $valid = 0;
-            $c->stash->{errors} ||= [];
             push @{ $c->stash->{errors} }, $photo_error;
         }
 
@@ -558,7 +557,7 @@ sub inspect : Private {
                     );
                 }
                 my $name = $c->user->from_body ? $c->user->from_body->name : $c->user->name;
-                my $update = $problem->add_to_comments( {
+                $problem->add_to_comments( {
                     text => $update_text,
                     created => $timestamp,
                     confirmed => $timestamp,
@@ -567,12 +566,9 @@ sub inspect : Private {
                     state => 'confirmed',
                     mark_fixed => 0,
                     anonymous => 0,
+                    photo => $c->stash->{upload_fileid} || undef,
                     %update_params,
                 } );
-                if ( my $fileid = $c->stash->{upload_fileid} ) {
-                    $update->photo($fileid);
-                    $update->update;
-                }
             }
 
             my $redirect_uri;
