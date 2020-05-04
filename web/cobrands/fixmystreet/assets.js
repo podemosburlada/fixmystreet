@@ -411,7 +411,7 @@ function check_zoom_message_visibility() {
         if ($p.length === 0) {
             $p = $("<p>").prop("id", id).prop('class', 'category_meta_message');
             if ($('html').hasClass('mobile')) {
-                $p.click(function() {
+                $p.on('click', function() {
                     $("#mob_ok").trigger('click');
                 }).addClass("btn");
             }
