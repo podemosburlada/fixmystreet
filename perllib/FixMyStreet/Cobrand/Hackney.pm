@@ -48,4 +48,6 @@ sub open311_config {
 
 sub map_type { 'OSM' }
 
+sub admin_user_domain { 'hackney.gov.uk' }
+
 1;
