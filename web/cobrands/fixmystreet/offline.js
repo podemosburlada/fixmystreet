@@ -61,7 +61,7 @@ fixmystreet.offlineBanner = (function() {
             }
 
             function postForm(url, data) {
-                return $.ajax({ url: url, data: data, type: 'POST' }).done(nextForm);
+              return $.ajax({ url: url, contentType: data.contentType, data: data.text, type: 'POST' }).done(nextForm);
             }
 
             $(document).on('click', '#oFN', function(e) {
@@ -83,8 +83,11 @@ fixmystreet.offlineBanner = (function() {
                                 if (!token) {
                                     return nextForm();
                                 }
-                                var param = form[1].replace(/&token=[^&]*/, '&token=' + token);
-                                return postForm(form[0], param).fail(nextForm);
+                                var text = form[1].text;
+                                var token_re = /(name="token"[\s]+)([\S]*)/;
+                                text = text.replace(token_re, '$1' + token);
+                                form[1].text = text;
+                                return postForm(form[0], form[1]).fail(nextForm);
                             });
                         });
                     });

@@ -552,6 +552,12 @@ sub inspect : Private {
 
         $c->cobrand->call_hook(report_inspect_update_extra => $problem);
 
+        $c->forward('/photo/process_photo');
+        if ( my $photo_error  = delete $c->stash->{photo_error} ) {
+            $valid = 0;
+            push @{ $c->stash->{errors} }, $photo_error;
+        }
+
         if ($valid) {
             $problem->lastupdate( \'current_timestamp' );
             $problem->update;
@@ -577,6 +583,7 @@ sub inspect : Private {
                     state => 'confirmed',
                     mark_fixed => 0,
                     anonymous => 0,
+                    photo => $c->stash->{upload_fileid} || undef,
                     %update_params,
                 } );
             }
