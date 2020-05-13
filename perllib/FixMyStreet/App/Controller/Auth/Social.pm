@@ -281,6 +281,7 @@ sub oidc_callback: Path('/auth/OIDC') : Args(0) {
     eval {
         $id_token = $oidc->get_access_token(
             code => $c->get_param('code'),
+            redirect_uri => $c->uri_for('/auth/OIDC')
         );
     };
     if ($@) {
