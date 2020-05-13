@@ -50,4 +50,11 @@ sub map_type { 'OSM' }
 
 sub admin_user_domain { 'hackney.gov.uk' }
 
+sub social_auth_enabled {
+    my $self = shift;
+
+    return $self->feature('oidc_login') ? 1 : 0;
+}
+
+
 1;

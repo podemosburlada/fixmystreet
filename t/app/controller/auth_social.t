@@ -15,6 +15,7 @@ FixMyStreet::App->log->disable('info');
 END { FixMyStreet::App->log->enable('info'); }
 
 my $body = $mech->create_body_ok(2504, 'Westminster City Council');
+my $body2 = $mech->create_body_ok(2508, 'Hackney Council');
 
 my ($report) = $mech->create_problems_for_body(1, $body->id, 'My Test Report');
 my $test_email = $report->user->email;
@@ -26,10 +27,20 @@ my $contact = $mech->create_contact_ok(
         { code => 'bin_service', description => 'Service needed', required => 'False' },
     ]
 );
+$mech->create_contact_ok(
+    body_id => $body2->id, category => 'Damaged bin', email => 'BIN',
+    extra => [
+        { code => 'bin_type', description => 'Type of bin', required => 'True' },
+        { code => 'bin_service', description => 'Service needed', required => 'False' },
+    ]
+);
 # Two options, incidentally, so that the template "Only one option, select it"
 # code doesn't kick in and make the tests pass
 my $contact2 = $mech->create_contact_ok(
     body_id => $body->id, category => 'Whatever', email => 'WHATEVER',
+);
+$mech->create_contact_ok(
+    body_id => $body2->id, category => 'Whatever', email => 'WHATEVER',
 );
 
 my $resolver = Test::MockModule->new('Email::Valid');
@@ -88,6 +99,35 @@ for my $test (
     user_extras => [
         [westminster_account_id => "1c304134-ef12-c128-9212-123908123901"],
     ],
+}, {
+    type => 'oidc',
+    config => {
+        ALLOWED_COBRANDS => 'hackney',
+        MAPIT_URL => 'http://mapit.uk/',
+        COBRAND_FEATURES => {
+            anonymous_account => {
+                hackney => 'test',
+            },
+            oidc_login => {
+                hackney => {
+                    client_id => 'example_client_id',
+                    secret => 'example_secret_key',
+                    auth_uri => 'http://oidc.example.org/oauth2/v2.0/authorize_google',
+                    token_uri => 'http://oidc.example.org/oauth2/v2.0/token_google',
+                    display_name => 'One Account'
+                }
+            }
+        }
+    },
+    email => $mech->uniquify_email('oidc_google@example.org'),
+    uid => "westminster:example_client_id:my_cool_user_id",
+    mock => 't::Mock::OpenIDConnect',
+    mock_hosts => ['oidc.example.org'],
+    host => 'oidc.example.org',
+    error_callback => '/auth/OIDC?error=ERROR',
+    success_callback => '/auth/OIDC?code=response-code&state=login',
+    redirect_pattern => qr{oidc\.example\.org/oauth2/v2\.0/authorize_google},
+    pc => 'E8 1DY',
 }
 ) {
 
@@ -139,7 +179,7 @@ for my $state ( 'refused', 'no email', 'existing UID', 'okay' ) {
                 $mech->get_ok('/my');
             } elsif ($page eq 'report') {
                 $mech->get_ok('/');
-                $mech->submit_form_ok( { with_fields => { pc => 'SW1A1AA' } }, "submit location" );
+                $mech->submit_form_ok( { with_fields => { pc => $test->{pc} || 'SW1A1AA' } }, "submit location" );
                 $mech->follow_link_ok( { text_regex => qr/skip this step/i, }, "follow 'skip this step' link" );
                 $mech->submit_form(with_fields => {
                     category => 'Damaged bin',
@@ -247,13 +287,13 @@ for my $state ( 'refused', 'no email', 'existing UID', 'okay' ) {
                     $mech->content_contains( $report->title );
                     $mech->content_contains( "/report/$report_id" );
                 }
-                if ($test->{type} eq 'oidc') {
+                if ($test->{type} eq 'oidc' && $test->{password_change_pattern}) {
                     ok $mech->find_link( text => 'Change password', url_regex => $test->{password_change_pattern} );
                 }
             }
 
             $mech->get('/auth/sign_out');
-            if ($test->{type} eq 'oidc' && $state ne 'refused' && $state ne 'no email') {
+            if ($test->{type} eq 'oidc' && $test->{logout_redirect_pattern} && $state ne 'refused' && $state ne 'no email') {
                 # XXX the 'no email' situation is skipped because of some confusion
                 # with the hosts/sessions that I've not been able to get to the bottom of.
                 # The code does behave as expected when testing manually, however.
