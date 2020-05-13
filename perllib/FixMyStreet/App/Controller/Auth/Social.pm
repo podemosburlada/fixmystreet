@@ -179,13 +179,15 @@ sub oidc_sign_in : Private {
     my ( $self, $c ) = @_;
 
     $c->detach( '/page_error_403_access_denied', [] ) if FixMyStreet->config('SIGNUPS_DISABLED');
-    $c->detach( '/page_error_400_bad_request', [] ) unless $c->cobrand->feature('oidc_login');
+
+    my$cfg = $c->cobrand->feature('oidc_login');
+    $c->detach( '/page_error_400_bad_request', [] ) unless $cfg;
 
     my $oidc = $c->forward('oidc');
     my $nonce = $self->generate_nonce();
     my $url = $oidc->uri_to_redirect(
         redirect_uri => $c->uri_for('/auth/OIDC'),
-        scope        => 'openid',
+        scope        => $cfg->{scope} || 'openid',
         state        => 'login',
         extra        => {
             response_mode => 'form_post',
@@ -201,14 +203,14 @@ sub oidc_sign_in : Private {
 
     # The OIDC endpoint may require a specific URI to be called to log the user
     # out when they log out of FMS.
-    if ( my $redirect_uri = $c->cobrand->feature('oidc_login')->{logout_uri} ) {
+    if ( my $redirect_uri = $cfg->{logout_uri} ) {
         $redirect_uri .= "?post_logout_redirect_uri=";
         $redirect_uri .= URI::Escape::uri_escape( $c->uri_for('/auth/sign_out') );
         $oauth{logout_redirect_uri} = $redirect_uri;
     }
 
     # The OIDC endpoint may provide a specific URI for changing the user's password.
-    if ( my $password_change_uri = $c->cobrand->feature('oidc_login')->{password_change_uri} ) {
+    if ( my $password_change_uri = $cfg->{password_change_uri} ) {
         $oauth{change_password_uri} = $oidc->uri_to_redirect(
             uri          => $password_change_uri,
             redirect_uri => $c->uri_for('/auth/OIDC'),
@@ -295,9 +297,9 @@ sub oidc_callback: Path('/auth/OIDC') : Args(0) {
     $c->detach('/page_error_500_internal_error', ['invalid id_token']) unless $id_token->payload->{nonce} eq $c->session->{oauth}{nonce};
 
     # Some claims need parsing into a friendlier format
-    # XXX check how much of this is Westminster/Azure-specific
-    my $name = join(" ", $id_token->payload->{given_name}, $id_token->payload->{family_name});
+    my $name = $id_token->payload->{name} || join(" ", $id_token->payload->{given_name}, $id_token->payload->{family_name});
     my $email = $id_token->payload->{email};
+
     # WCC Azure provides a single email address as an array for some reason
     my $emails = $id_token->payload->{emails};
     if ($emails && @$emails) {
