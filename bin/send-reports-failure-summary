@@ -14,7 +14,31 @@ BEGIN {
     require "$d/../setenv.pl";
 }
 
+use FixMyStreet;
 use FixMyStreet::Script::Reports;
+use FixMyStreet::DB;
+use Open311::PostServiceRequestUpdates;
 
+# report summary
 my $manager = FixMyStreet::Script::Reports->new;
 $manager->end_summary_failures;
+
+# updates summary
+my $updates = Open311::PostServiceRequestUpdates->new();
+my $bodies = $updates->fetch_bodies;
+my $params = $updates->construct_query(1);
+my $u = FixMyStreet::DB->resultset("Comment")
+    ->to_body([ keys %$bodies ])
+    ->search({ "me.send_fail_count" => { '>', 0 } })
+    ->search($params, { join => "problem" });
+
+my $sending_errors;
+while (my $row = $u->next) {
+    my $base_url = FixMyStreet->config('BASE_URL');
+    $sending_errors .= "\n" . '=' x 80 . "\n\n" . "* " . $base_url . "/report/" . $row->problem_id . ", update " . $row->id . " failed "
+        . $row->send_fail_count . " times, last at " . $row->send_fail_timestamp
+        . ", reason " . $row->send_fail_reason . "\n";
+}
+if ($sending_errors) {
+    print '=' x 80 . "\n\n" . "The following updates failed sending:\n$sending_errors";
+}
